@@ -3,6 +3,7 @@
 import os
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from langchain_core.tools import tool
 
 from langgraph.graph import StateGraph, END
 from langchain_core.runnables import RunnableLambda
@@ -10,6 +11,10 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 import chromadb
 from sentence_transformers import SentenceTransformer
+
+import smtplib
+from email.mime.text import MIMEText
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. ENVIRONMENT & DB SETUP
@@ -96,7 +101,7 @@ def retrieve_clauses(state: dict):
         query_embeddings=[query_emb],
         n_results=5
     )
-    print("🔍 Query results:", results)
+    #print("🔍 Query results:", results)
 
     ids       = results["ids"][0]        # List[str]
     texts     = results["documents"][0]  # List[str]
@@ -112,26 +117,94 @@ def retrieve_clauses(state: dict):
             "text": texts[i]
         })
 
-    print("📚 Retrieved Clauses:", retrieved)
+    # print("📚 Retrieved Clauses:", retrieved)
     return {
         **state,
         "retrieved_clauses": retrieved
     }
 
+
 # ──────────────────────────────────────────────────────────────────────────────
-# 5. LANGGRAPH PIPELINE DEFINITION
+# 5. AGENT 3: Communication Agent
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@tool
+def get_stakeholders_from_db() -> list:
+    """Fetches all stakeholders from the 'stakeholders' collection in MongoDB."""
+
+    client = MongoClient(os.getenv("MONGO_URI"))
+    db = client["AgenticAI"]
+    collection_stakeholders = db["stakeholders"]
+
+    stakeholders = list(collection_stakeholders.find({}, {"_id": 0}))
+    print("👥 Retrieved Stakeholders:", stakeholders)
+    return stakeholders
+
+
+@tool(description="Send MoU draft email to a stakeholder using their name, email, and draft content.")
+def send_email_to_stakeholder(name: str, email: str, draft_text: str) -> str:
+    sender_email = "rahulsnsihub@gmail.com"
+    app_password = os.getenv("GMAIL_APP_PASSWORD")
+
+    msg = MIMEText(draft_text)
+    msg["Subject"] = "MoU Draft for Review"
+    msg["From"] = sender_email
+    msg["To"] = email
+
+    try:
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server.login(sender_email, app_password)
+        server.sendmail(sender_email, [email], msg.as_string())
+        server.quit()
+
+        print(f"📨 Real email sent to {email}")
+        return f"Email sent to {email}"
+
+    except Exception as e:
+        print("❌ Email failed:", e)
+        return "Email failed"
+
+
+def communication_agent(state: dict):
+    print("📨 Starting Communication Agent...")
+
+    # 1. Get stakeholders
+    stakeholders = get_stakeholders_from_db.invoke({})
+
+
+    # 2. Send email to each
+    sent_emails = []
+    for person in stakeholders:
+        send_email_to_stakeholder.invoke({
+            "name": person["name"],
+            "email": person["email"],
+            "draft_text": state["draft_text"]
+        })
+        sent_emails.append(person["email"])
+
+    print("✅ Emails Sent To:", sent_emails)
+    return {
+        **state,
+        "emails_sent": sent_emails
+    }
+
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 6. LANGGRAPH PIPELINE DEFINITION
 # ──────────────────────────────────────────────────────────────────────────────
 def build_graph():
     g = StateGraph(dict)
 
-    # Node 1: Drafting
     g.add_node("drafting", RunnableLambda(draft_mou))
-    # Node 2: Clause Retrieval
     g.add_node("clause_retrieval", RunnableLambda(retrieve_clauses))
+    g.add_node("communication", RunnableLambda(communication_agent))
 
-    # Flow: drafting → clause_retrieval → END
     g.set_entry_point("drafting")
     g.add_edge("drafting", "clause_retrieval")
-    g.add_edge("clause_retrieval", END)
+    g.add_edge("clause_retrieval", "communication")
+    g.add_edge("communication", END)
 
     return g.compile()
+
