@@ -4,6 +4,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .langgraph_flow import build_graph
 
+
 @csrf_exempt
 def generate_mou_view(request):
     if request.method == "POST":
