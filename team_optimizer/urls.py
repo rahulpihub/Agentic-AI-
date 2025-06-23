@@ -1,6 +1,6 @@
 from django.urls import path
-from .views import test_connection
+from .views import *
 
 urlpatterns = [
-    path('ping/', test_connection),
+    path('generate-draft/', generate_mou_view),
 ]
