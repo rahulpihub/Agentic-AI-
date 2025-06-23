@@ -18,7 +18,9 @@ def generate_mou_view(request):
                 "result": {
                     "draft_text": result.get("draft_text", ""),
                     "retrieved_clauses": result.get("retrieved_clauses", []),
-                    "emails_sent": result.get("emails_sent", [])
+                    "emails_sent": result.get("emails_sent", []),
+                    "approval_status": result.get("approval_status", {}), 
+                    "overall_mou_status": result.get("overall_mou_status", "")
                 }
             })
 

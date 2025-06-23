@@ -186,6 +186,52 @@ def communication_agent(state: dict):
         "emails_sent": sent_emails
     }
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 6. AGENT 4:  Approval Tracker Agent
+# ──────────────────────────────────────────────────────────────────────────────
+
+@tool(description="Check if stakeholder has approved MoU by querying the MongoDB 'approvals' collection.")
+def check_approval_status_from_db(email: str) -> str:
+    """
+    Query MongoDB to check if the stakeholder with this email has 'approved' status.
+    """
+    client = MongoClient(os.getenv("MONGO_URI"))
+    db = client["AgenticAI"]
+    approvals = db["approvals"]
+
+    result = approvals.find_one({"email": email}, {"_id": 0, "status": 1})
+    if result and result.get("status", "").lower() == "approved":
+        print(f"✅ DB shows APPROVED for {email}")
+        return "Approved"
+    else:
+        print(f"❌ DB shows PENDING or not found for {email}")
+        return "Pending"
+    
+    
+def approval_tracker_agent(state: dict):
+    print("⏳ Running Approval Tracker Agent (via DB)...")
+
+    emails_sent = state.get("emails_sent", [])
+    approval_status = {}
+
+    for email in emails_sent:
+        status = check_approval_status_from_db.invoke({"email": email})
+        approval_status[email] = status
+
+    all_approved = all(s == "Approved" for s in approval_status.values())
+    overall_status = "Approved" if all_approved else "Pending"
+
+    print("✅ Approval Status:", approval_status)
+    print("📝 Overall MoU Status:", overall_status)
+
+    return {
+        **state,
+        "approval_status": approval_status,
+        "overall_mou_status": overall_status
+    }
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # 6. LANGGRAPH PIPELINE DEFINITION
 # ──────────────────────────────────────────────────────────────────────────────
@@ -195,11 +241,13 @@ def build_graph():
     g.add_node("drafting", RunnableLambda(draft_mou))
     g.add_node("clause_retrieval", RunnableLambda(retrieve_clauses))
     g.add_node("communication", RunnableLambda(communication_agent))
+    g.add_node("approval_tracker", RunnableLambda(approval_tracker_agent))  # new node
 
     g.set_entry_point("drafting")
     g.add_edge("drafting", "clause_retrieval")
     g.add_edge("clause_retrieval", "communication")
-    g.add_edge("communication", END)
+    g.add_edge("communication", "approval_tracker")   # connect communication to approval tracker
+    g.add_edge("approval_tracker", END)
 
     return g.compile()
 

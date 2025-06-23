@@ -13,6 +13,9 @@ function App() {
   const [clauses, setClauses] = useState<Clause[]>([])     // ← new
   const [loading, setLoading] = useState(false)
   const [emailsSent, setEmailsSent] = useState<string[]>([])  // 👈 new
+  const [approvalStatus, setApprovalStatus] = useState<{ [key: string]: string }>({})
+  const [overallStatus, setOverallStatus] = useState('')
+
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value })
@@ -28,7 +31,9 @@ function App() {
       const result = res.data.result || {}
       setDraft(result.draft_text || '')                    // ← draft_text
       setClauses(result.retrieved_clauses || [])  
-      setEmailsSent(result.emails_sent || [])         // ← retrieved_clauses
+      setEmailsSent(result.emails_sent || [])
+      setApprovalStatus(result.approval_status || {})  // 🆕
+      setOverallStatus(result.overall_mou_status || '') // 🆕
     } catch (error) {
       alert('Error generating MoU. Please check backend.')
     } finally {
@@ -181,6 +186,23 @@ function App() {
           </div>
         )}
 
+        {overallStatus && (
+        <div className="p-6 border border-navy-200 rounded-xl bg-navy-50 space-y-4">
+          <h2 className="text-2xl font-semibold text-navy-900">
+            Agent 4 - Approval Tracker Agent Executed
+          </h2>
+          <p className="text-navy-800">
+            📝 Overall MoU Status: <strong>{overallStatus}</strong>
+          </p>
+          <ul className="list-disc list-inside text-navy-800 space-y-1">
+            {Object.entries(approvalStatus).map(([email, status]) => (
+              <li key={email}>
+                <strong>{email}</strong>: {status}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       </div>
     </div>
   )
