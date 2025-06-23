@@ -47,7 +47,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-navy-900 to-navy-800 flex items-center justify-center py-12">
-      <div className="max-w-7xl w-full ml-[75px] p-8 bg-black rounded-2xl shadow-2xl space-y-8">
+      <div className="max-w-7xl w-full ml-[150px] p-8 bg-black rounded-2xl shadow-2xl space-y-8">
         <h1 className="text-4xl font-extrabold text-center text-navy-900 tracking-tight">
           📄 MoU Generator
           <span className="block text-xl font-medium text-orange-500 mt-1">
