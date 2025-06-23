@@ -20,7 +20,9 @@ def generate_mou_view(request):
                     "retrieved_clauses": result.get("retrieved_clauses", []),
                     "emails_sent": result.get("emails_sent", []),
                     "approval_status": result.get("approval_status", {}), 
-                    "overall_mou_status": result.get("overall_mou_status", "")
+                    "overall_mou_status": result.get("overall_mou_status", ""),
+                    "version_number": result.get("version_number", ""),
+                    "version_diff": result.get("version_diff", "")
                 }
             })
 

@@ -15,6 +15,8 @@ function App() {
   const [emailsSent, setEmailsSent] = useState<string[]>([])  // 👈 new
   const [approvalStatus, setApprovalStatus] = useState<{ [key: string]: string }>({})
   const [overallStatus, setOverallStatus] = useState('')
+  const [versionNumber, setVersionNumber] = useState('')
+  const [versionDiff, setVersionDiff] = useState('')
 
 
   const handleChange = (e) => {
@@ -29,11 +31,13 @@ function App() {
         form
       )
       const result = res.data.result || {}
-      setDraft(result.draft_text || '')                    // ← draft_text
+      setDraft(result.draft_text || '')                 
       setClauses(result.retrieved_clauses || [])  
       setEmailsSent(result.emails_sent || [])
-      setApprovalStatus(result.approval_status || {})  // 🆕
-      setOverallStatus(result.overall_mou_status || '') // 🆕
+      setApprovalStatus(result.approval_status || {})  
+      setOverallStatus(result.overall_mou_status || '') 
+      setVersionNumber(result.version_number || '')   
+      setVersionDiff(result.version_diff || '')        
     } catch (error) {
       alert('Error generating MoU. Please check backend.')
     } finally {
@@ -203,6 +207,19 @@ function App() {
           </ul>
         </div>
       )}
+        {versionNumber && (
+          <div className="p-6 border border-navy-200 rounded-xl bg-navy-50 space-y-4">
+            <h2 className="text-2xl font-semibold text-navy-900">
+              Agent 5 - Version Control Agent Executed
+            </h2>
+            <p className="text-navy-800">
+              📄 Version Number: <strong>{versionNumber}</strong>
+            </p>
+            <p className="text-navy-800">
+              🆕 Version Diff: <strong>{versionDiff}</strong>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

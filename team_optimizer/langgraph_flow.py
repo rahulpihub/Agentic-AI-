@@ -15,6 +15,7 @@ from sentence_transformers import SentenceTransformer
 import smtplib
 from email.mime.text import MIMEText
 
+from difflib import unified_diff
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. ENVIRONMENT & DB SETUP
@@ -35,7 +36,7 @@ draft_collection = db["MoUDrafts"]
 # ──────────────────────────────────────────────────────────────────────────────
 # 2. CHROMADB VECTOR STORE SETUP (INGESTED ALREADY)
 # ──────────────────────────────────────────────────────────────────────────────
-# Use the same folder you wrote into when running your ingestion script
+
 chroma_client = chromadb.PersistentClient(path="./clause_chromadb")
 clause_collection = chroma_client.get_or_create_collection(name="clauses")
 
@@ -82,9 +83,6 @@ Respond in professional business language. Format as an MoU.
 # ──────────────────────────────────────────────────────────────────────────────
 # 4. AGENT 2: Clause Retrieval (RAG Agent)
 # ──────────────────────────────────────────────────────────────────────────────
-# In team_optimizer/langgraph_flow.py
-
-# team_optimizer/langgraph_flow.py (only this function changes)
 
 def retrieve_clauses(state: dict):
     """
@@ -127,7 +125,6 @@ def retrieve_clauses(state: dict):
 # ──────────────────────────────────────────────────────────────────────────────
 # 5. AGENT 3: Communication Handler Agent
 # ──────────────────────────────────────────────────────────────────────────────
-
 @tool
 def get_stakeholders_from_db() -> list:
     """Fetches all stakeholders from the 'stakeholders' collection in MongoDB."""
@@ -169,7 +166,6 @@ def communication_agent(state: dict):
     # 1. Get stakeholders
     stakeholders = get_stakeholders_from_db.invoke({})
 
-
     # 2. Send email to each
     sent_emails = []
     for person in stakeholders:
@@ -208,7 +204,7 @@ def check_approval_status_from_db(email: str) -> str:
         print(f"❌ DB shows PENDING or not found for {email}")
         return "Pending"
     
-    
+
 def approval_tracker_agent(state: dict):
     print("⏳ Running Approval Tracker Agent (via DB)...")
 
@@ -233,21 +229,100 @@ def approval_tracker_agent(state: dict):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# 7. AGENT 5: Version Controller Agent
+# ──────────────────────────────────────────────────────────────────────────────
+
+def version_controller_agent(state: dict):
+    print("🧮 Running Version Controller Agent...")
+
+    company = state.get("company_name")
+    curr_text = state.get("draft_text", "")
+    curr_type = state.get("partnership_type", "")
+
+    if not company or not curr_text:
+        return {**state, "version_diff": "Missing input data"}
+
+    # Fetch all historical drafts BEFORE inserting current one
+    history = list(draft_collection.find({"company_name": company}).sort("_id", 1))
+
+    version_number = f"v{len(history) + 1}"
+
+    if history:
+        prev_doc = history[-1]  # Get the actual previous version
+        prev_text = prev_doc.get("draft", "")
+        prev_type = prev_doc.get("type", "")
+
+        print(f"📜 Comparing with previous version {prev_doc.get('version', 'N/A')}...")
+        print(f"Previous Type: {prev_type}, Current Type: {curr_type}")
+
+        type_changed = curr_type != prev_type
+        text_changed = curr_text != prev_text
+
+        if not type_changed and not text_changed:
+            print("⚠️ No changes from last version.")
+            return {
+                **state,
+                "version_number": version_number,
+                "version_diff": "No change from previous version."
+            }
+
+        diff_sections = []
+
+        if type_changed:
+            diff_sections.append(f"⚠️ Partnership type changed from '{prev_type}' to '{curr_type}'")
+
+        if text_changed:
+            diff = list(unified_diff(
+                prev_text.splitlines(),
+                curr_text.splitlines(),
+                fromfile='Previous Draft',
+                tofile='Current Draft',
+                lineterm=''
+            ))
+            diff_sections.append("\n".join(diff))
+
+        diff_text = "\n\n".join(diff_sections)
+
+    else:
+        print("📘 First version, no diff to compare.")
+        diff_text = "Initial version created."
+
+    # 🔁 Save *after* comparison
+    draft_collection.insert_one({
+        "company_name": company,
+        "draft": curr_text,
+        "version": version_number,
+        "type": curr_type
+    })
+    print(f"✅ Saved {version_number} to database.")
+
+    return {
+        **state,
+        "version_number": version_number,
+        "version_diff": diff_text
+    }
+
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # 6. LANGGRAPH PIPELINE DEFINITION
 # ──────────────────────────────────────────────────────────────────────────────
+
 def build_graph():
     g = StateGraph(dict)
 
     g.add_node("drafting", RunnableLambda(draft_mou))
     g.add_node("clause_retrieval", RunnableLambda(retrieve_clauses))
     g.add_node("communication", RunnableLambda(communication_agent))
-    g.add_node("approval_tracker", RunnableLambda(approval_tracker_agent))  # new node
+    g.add_node("approval_tracker", RunnableLambda(approval_tracker_agent))
+    g.add_node("version_controller", RunnableLambda(version_controller_agent))  # ✅ New node
 
     g.set_entry_point("drafting")
     g.add_edge("drafting", "clause_retrieval")
     g.add_edge("clause_retrieval", "communication")
-    g.add_edge("communication", "approval_tracker")   # connect communication to approval tracker
-    g.add_edge("approval_tracker", END)
+    g.add_edge("communication", "approval_tracker")
+    g.add_edge("approval_tracker", "version_controller")  # ✅ New edge
+    g.add_edge("version_controller", END)  # ✅ Final step
 
     return g.compile()
 
