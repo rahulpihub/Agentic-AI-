@@ -9,15 +9,18 @@ def generate_mou_view(request):
     if request.method == "POST":
         try:
             data = json.loads(request.body)
-            print("🚀 Incoming:", data)
-
             graph = build_graph()
             result = graph.invoke(data)
 
-            print("✅ LangGraph Output:", result)
-            return JsonResponse({"result": result.get("draft_text", "")})
+            # Return both draft_text and the list of {clause_id,text}
+            return JsonResponse({
+                "result": {
+                    "draft_text": result.get("draft_text", ""),
+                    "retrieved_clauses": result.get("retrieved_clauses", [])
+                }
+            })
 
         except Exception as e:
-            print("❌ Error:", str(e))
             traceback.print_exc()
             return JsonResponse({"error": str(e)}, status=500)
+
