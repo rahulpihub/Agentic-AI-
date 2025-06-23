@@ -173,7 +173,7 @@ function App() {
         {emailsSent.length > 0 && (
           <div className="p-6 border border-navy-200 rounded-xl bg-navy-50 space-y-4">
             <h2 className="text-2xl font-semibold text-navy-900">
-              Agent 3 - Email Notification Executed
+              Agent 3 - Communication Handler Agent Executed
             </h2>
             <p className="text-navy-800">
               ✅ Email sent to: <strong>{emailsSent.join(', ')}</strong>

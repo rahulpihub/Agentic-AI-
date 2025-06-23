@@ -125,9 +125,8 @@ def retrieve_clauses(state: dict):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 5. AGENT 3: Communication Agent
+# 5. AGENT 3: Communication Handler Agent
 # ──────────────────────────────────────────────────────────────────────────────
-
 
 @tool
 def get_stakeholders_from_db() -> list:
@@ -140,7 +139,6 @@ def get_stakeholders_from_db() -> list:
     stakeholders = list(collection_stakeholders.find({}, {"_id": 0}))
     print("👥 Retrieved Stakeholders:", stakeholders)
     return stakeholders
-
 
 @tool(description="Send MoU draft email to a stakeholder using their name, email, and draft content.")
 def send_email_to_stakeholder(name: str, email: str, draft_text: str) -> str:
@@ -165,7 +163,6 @@ def send_email_to_stakeholder(name: str, email: str, draft_text: str) -> str:
         print("❌ Email failed:", e)
         return "Email failed"
 
-
 def communication_agent(state: dict):
     print("📨 Starting Communication Agent...")
 
@@ -188,8 +185,6 @@ def communication_agent(state: dict):
         **state,
         "emails_sent": sent_emails
     }
-
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 6. LANGGRAPH PIPELINE DEFINITION
