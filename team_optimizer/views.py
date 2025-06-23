@@ -17,7 +17,8 @@ def generate_mou_view(request):
             return JsonResponse({
                 "result": {
                     "draft_text": result.get("draft_text", ""),
-                    "retrieved_clauses": result.get("retrieved_clauses", [])
+                    "retrieved_clauses": result.get("retrieved_clauses", []),
+                    "emails_sent": result.get("emails_sent", [])
                 }
             })
 

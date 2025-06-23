@@ -12,6 +12,7 @@ function App() {
   type Clause = { clause_id: string; text: string }
   const [clauses, setClauses] = useState<Clause[]>([])     // ← new
   const [loading, setLoading] = useState(false)
+  const [emailsSent, setEmailsSent] = useState<string[]>([])  // 👈 new
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value })
@@ -26,7 +27,8 @@ function App() {
       )
       const result = res.data.result || {}
       setDraft(result.draft_text || '')                    // ← draft_text
-      setClauses(result.retrieved_clauses || [])           // ← retrieved_clauses
+      setClauses(result.retrieved_clauses || [])  
+      setEmailsSent(result.emails_sent || [])         // ← retrieved_clauses
     } catch (error) {
       alert('Error generating MoU. Please check backend.')
     } finally {
@@ -143,7 +145,7 @@ function App() {
         {draft && (
           <div className="p-6 border border-navy-200 rounded-xl bg-navy-50 space-y-4">
             <h2 className="text-2xl font-semibold text-navy-900">
-              Agent 1 - Generated MoU
+              Agent 1 - Generated MoU Executed
             </h2>
             <div className="text-navy-800 whitespace-pre-wrap leading-relaxed bg-black p-4 rounded-lg shadow-inner border border-navy-100">
               {draft}
@@ -155,7 +157,7 @@ function App() {
         {clauses.length > 0 && (
           <div className="p-6 border border-navy-200 rounded-xl bg-navy-50 space-y-4">
             <h2 className="text-2xl font-semibold text-navy-900">
-              Agent 2 - Suggested Legal Clauses
+              Agent 2 - Suggested Legal Clauses Executed
             </h2>
             <ul className="list-disc list-inside text-navy-800 space-y-1">
               {clauses.map((c) => (
@@ -166,6 +168,19 @@ function App() {
             </ul>
           </div>
         )}
+
+        {/* Agent 3 - Email Confirmation */}
+        {emailsSent.length > 0 && (
+          <div className="p-6 border border-navy-200 rounded-xl bg-navy-50 space-y-4">
+            <h2 className="text-2xl font-semibold text-navy-900">
+              Agent 3 - Email Notification Executed
+            </h2>
+            <p className="text-navy-800">
+              ✅ Email sent to: <strong>{emailsSent.join(', ')}</strong>
+            </p>
+          </div>
+        )}
+
       </div>
     </div>
   )
