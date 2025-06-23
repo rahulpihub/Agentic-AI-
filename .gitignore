@@ -1,0 +1,36 @@
+# ===================== PYTHON / DJANGO =====================
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.log
+*.pot
+*.pyc
+db.sqlite3
+.env
+.venv/
+venv/
+env/
+local_settings.py
+.DS_Store
+
+# Django Migrations
+*/migrations/
+!/backend/migrations/__init__.py
+!/team_optimizer/migrations/__init__.py
+
+# ===================== VSCODE =====================
+.vscode/
+
+# ===================== NODE / REACT / VITE =====================
+node_modules/
+dist/
+frontend/.env
+frontend/.vite
+frontend/.cache
+frontend/build
+frontend/.next
+frontend/yarn.lock
+frontend/package-lock.json
+
+# ===================== CUSTOM =====================
+packages/
