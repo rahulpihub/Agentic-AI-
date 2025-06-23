@@ -64,7 +64,7 @@ Details:
 Respond in professional business language. Format as an MoU.
 """
     response = llm.invoke(prompt)
-    draft = response.content.strip()
+    draft = response.content.replace("**", "").strip()
 
     # Persist the draft
     draft_collection.insert_one({
@@ -73,6 +73,7 @@ Respond in professional business language. Format as an MoU.
         "type": state["partnership_type"]
     })
     print("✅ Draft saved to MongoDB.")
+    print("📄 Draft Text:", draft)
 
     # Return new state with draft_text
     return {
