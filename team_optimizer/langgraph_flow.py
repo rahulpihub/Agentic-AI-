@@ -176,11 +176,32 @@ def get_stakeholders_from_db() -> list:
     return stakeholders
 
 @tool(description="Send MoU draft email to a stakeholder using their name, email, and draft content.")
-def send_email_to_stakeholder(name: str, email: str, draft_text: str) -> str:
+def send_email_to_stakeholder(name: str, email: str, draft_text: str, retrieved_clauses: list) -> str:
     sender_email = "rahulsnsihub@gmail.com"
     app_password = os.getenv("GMAIL_APP_PASSWORD")
+    
+    # Format clause text nicely
+    clauses_str = "\n\n".join(
+        [f"Clause {i+1}: {c['text']}" for i, c in enumerate(retrieved_clauses)]
+    )
 
-    msg = MIMEText(draft_text)
+    # Compose the full email
+    email_body = f"""
+Dear {name},
+
+Please find the initial draft of the MoU below:
+
+{draft_text}
+
+--- Suggested Clauses Based on Precedents ---
+
+{clauses_str}
+
+Regards,
+MoU-GENIUS Agent
+"""
+
+    msg = MIMEText(email_body)
     msg["Subject"] = "MoU Draft for Review"
     msg["From"] = sender_email
     msg["To"] = email
@@ -198,8 +219,10 @@ def send_email_to_stakeholder(name: str, email: str, draft_text: str) -> str:
         print("❌ Email failed:", e)
         return "Email failed"
 
+
 def communication_agent(state: dict):
     print("📨 Starting Communication Agent...")
+    retrieved_clauses = state.get("retrieved_clauses", [])
 
     # 1. Get stakeholders
     stakeholders = get_stakeholders_from_db.invoke({})
@@ -210,7 +233,8 @@ def communication_agent(state: dict):
         send_email_to_stakeholder.invoke({
             "name": person["name"],
             "email": person["email"],
-            "draft_text": state["draft_text"]
+            "draft_text": state["draft_text"],
+            "retrieved_clauses": retrieved_clauses
         })
         sent_emails.append(person["email"])
 

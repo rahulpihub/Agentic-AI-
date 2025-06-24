@@ -49,7 +49,7 @@ function App() {
     <div className=" bg-gradient-to-br from-navy-900 to-navy-800 flex items-center justify-center px-150 mlg:0 lg:px-50 py-10 min-h-screen">
       <div className="max-w-7xl w-full ml-[185px] p-8 bg-black rounded-2xl shadow-2xl space-y-8">
         <h1 className="w-full h-full py-4  px-75 text-4xl font-bold text-center text-navy-900 tracking-tight">
-          📄 MoU Generator
+          📄MoU Lifecycle   Automation
           <span className="block text-xl font-medium text-orange-500 mt-1">
             Powered by Agentic AI
           </span>
