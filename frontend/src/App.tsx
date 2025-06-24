@@ -31,13 +31,13 @@ function App() {
         form
       )
       const result = res.data.result || {}
-      setDraft(result.draft_text || '')                 
-      setClauses(result.retrieved_clauses || [])  
+      setDraft(result.draft_text || '')
+      setClauses(result.retrieved_clauses || [])
       setEmailsSent(result.emails_sent || [])
-      setApprovalStatus(result.approval_status || {})  
-      setOverallStatus(result.overall_mou_status || '') 
-      setVersionNumber(result.version_number || '')   
-      setVersionDiff(result.version_diff || '')        
+      setApprovalStatus(result.approval_status || {})
+      setOverallStatus(result.overall_mou_status || '')
+      setVersionNumber(result.version_number || '')
+      setVersionDiff(result.version_diff || '')
     } catch (error) {
       alert('Error generating MoU. Please check backend.')
     } finally {
@@ -46,9 +46,9 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-navy-900 to-navy-800 flex items-center justify-center py-12">
+    <div className=" bg-gradient-to-br from-navy-900 to-navy-800 flex items-center justify-center px-150 mlg:0 lg:px-50 py-10 min-h-screen">
       <div className="max-w-7xl w-full ml-[185px] p-8 bg-black rounded-2xl shadow-2xl space-y-8">
-        <h1 className="text-4xl font-extrabold text-center text-navy-900 tracking-tight">
+        <h1 className="w-full h-full py-4  px-75 text-4xl font-bold text-center text-navy-900 tracking-tight">
           📄 MoU Generator
           <span className="block text-xl font-medium text-orange-500 mt-1">
             Powered by Agentic AI
@@ -191,22 +191,22 @@ function App() {
         )}
 
         {overallStatus && (
-        <div className="p-6 border border-navy-200 rounded-xl bg-navy-50 space-y-4">
-          <h2 className="text-2xl font-semibold text-navy-900">
-            Agent 4 - Approval Tracker Agent Executed
-          </h2>
-          <p className="text-navy-800">
-            📝 Overall MoU Status: <strong>{overallStatus}</strong>
-          </p>
-          <ul className="list-disc list-inside text-navy-800 space-y-1">
-            {Object.entries(approvalStatus).map(([email, status]) => (
-              <li key={email}>
-                <strong>{email}</strong>: {status}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+          <div className="p-6 border border-navy-200 rounded-xl bg-navy-50 space-y-4">
+            <h2 className="text-2xl font-semibold text-navy-900">
+              Agent 4 - Approval Tracker Agent Executed
+            </h2>
+            <p className="text-navy-800">
+              📝 Overall MoU Status: <strong>{overallStatus}</strong>
+            </p>
+            <ul className="list-disc list-inside text-navy-800 space-y-1">
+              {Object.entries(approvalStatus).map(([email, status]) => (
+                <li key={email}>
+                  <strong>{email}</strong>: {status}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {versionNumber && (
           <div className="p-6 border border-navy-200 rounded-xl bg-navy-50 space-y-4">
             <h2 className="text-2xl font-semibold text-navy-900">
