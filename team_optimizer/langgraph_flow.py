@@ -17,6 +17,8 @@ from email.mime.text import MIMEText
 
 from difflib import unified_diff
 
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. ENVIRONMENT & DB SETUP
 # ──────────────────────────────────────────────────────────────────────────────
@@ -46,12 +48,15 @@ embedder = SentenceTransformer("all-MiniLM-L6-v2")
 # ──────────────────────────────────────────────────────────────────────────────
 # 3. AGENT 1: MoU Drafting
 # ──────────────────────────────────────────────────────────────────────────────
+
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from io import BytesIO
+import base64
+
 def draft_mou(state: dict):
-    """
-    Agent 1: Generate the initial MoU draft from intake form.
-    """
     print("🔁 Drafting MoU with form data:", state)
-    
+
     prompt = f"""
 You are a legal assistant. Create a formal Memorandum of Understanding (MoU) document.
 
@@ -66,19 +71,51 @@ Respond in professional business language. Format as an MoU.
     response = llm.invoke(prompt)
     draft = response.content.replace("**", "").strip()
 
-    # Persist the draft
+    # ✅ Generate PDF using ReportLab
+    pdf_buffer = BytesIO()
+    p = canvas.Canvas(pdf_buffer, pagesize=A4)
+    width, height = A4
+    p.setFont("Helvetica", 12)
+
+    y = height - 50  # Start from top margin
+
+    for line in draft.split("\n"):
+        if y < 50:
+            p.showPage()
+            p.setFont("Helvetica", 12)
+            y = height - 50
+        p.drawString(50, y, line.strip())
+        y -= 20  # Line spacing
+
+    p.showPage()
+    p.save()
+
+    # ✅ Encode PDF to base64
+    pdf_buffer.seek(0)
+    pdf_bytes = pdf_buffer.getvalue()
+    pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
+
+    # ✅ Versioning
+    company_drafts = list(draft_collection.find({"company_name": state["company_name"]}))
+    version = f"v{len(company_drafts) + 1}"
+
+    # ✅ Save to MongoDB
     draft_collection.insert_one({
         "company_name": state["company_name"],
         "draft": draft,
-        "type": state["partnership_type"]
+        "type": state["partnership_type"],
+        "version": version,
+        "pdf_base64": pdf_base64
     })
-    print("✅ Draft saved to MongoDB.")
+
+    print("✅ Draft + PDF saved to MongoDB.")
     print("📄 Draft Text:", draft)
 
-    # Return new state with draft_text
     return {
         **state,
-        "draft_text": draft
+        "draft_text": draft,
+        "version_number": version,
+        "pdf_base64": pdf_base64
     }
 
 # ──────────────────────────────────────────────────────────────────────────────
