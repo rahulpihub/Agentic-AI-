@@ -66,7 +66,7 @@ Details:
 - Objective: {state['objective']}
 - Scope: {state['scope']}
 
-Respond in professional business language. Format as an MoU.
+Respond in professional business language. Format as an MoU.Just use the data which is given to you in the above dont take any other data becausei dont want the content which is having blank space
 """
     response = llm.invoke(prompt)
     draft = response.content.replace("**", "").strip()
