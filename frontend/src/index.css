@@ -35,12 +35,12 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
   place-items: center;
   min-width: 20px;
   min-height: 100vh;
-  margin-left: 400px;
-  margin-right: 150px;
+  margin-left: 250px;
+  margin-right: 170px;
+  background-color: white;
 }
 
 h1 {
