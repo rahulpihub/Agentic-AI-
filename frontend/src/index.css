@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+@tailwind utilities;
+
+
+@layer components {
+  .input-field {
+    @apply w-full p-4 border border-slate-300 rounded-md bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500;
+  }
+}
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -26,10 +35,12 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
   place-items: center;
-  min-width: 320px;
+  min-width: 20px;
   min-height: 100vh;
+  margin-left: 250px;
+  margin-right: 170px;
+  background-color: white;
 }
 
 h1 {

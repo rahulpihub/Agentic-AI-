@@ -1,4 +1,4 @@
-# team_optimizer/langgraph_flow.py
+#langgraph_flow.py
 
 import os
 from dotenv import load_dotenv
@@ -16,6 +16,15 @@ import smtplib
 from email.mime.text import MIMEText
 
 from difflib import unified_diff
+
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from io import BytesIO
+import base64
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import json
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. ENVIRONMENT & DB SETUP
@@ -46,12 +55,11 @@ embedder = SentenceTransformer("all-MiniLM-L6-v2")
 # ──────────────────────────────────────────────────────────────────────────────
 # 3. AGENT 1: MoU Drafting
 # ──────────────────────────────────────────────────────────────────────────────
+
 def draft_mou(state: dict):
-    """
-    Agent 1: Generate the initial MoU draft from intake form.
-    """
     print("🔁 Drafting MoU with form data:", state)
-    
+
+
     prompt = f"""
 You are a legal assistant. Create a formal Memorandum of Understanding (MoU) document.
 
@@ -60,25 +68,58 @@ Details:
 - Partnership Type: {state['partnership_type']}
 - Objective: {state['objective']}
 - Scope: {state['scope']}
+- Date: {state['mou_date']}
 
-Respond in professional business language. Format as an MoU.
-"""
+Respond in professional business language. Format as an MoU.Dont reveal that it is ai generated in the content    
+""" 
     response = llm.invoke(prompt)
     draft = response.content.replace("**", "").strip()
 
-    # Persist the draft
+    # ✅ Generate PDF using ReportLab
+    pdf_buffer = BytesIO()
+    p = canvas.Canvas(pdf_buffer, pagesize=A4)
+    width, height = A4
+    p.setFont("Helvetica", 12)
+
+    y = height - 50  # Start from top margin
+
+    for line in draft.split("\n"):
+        if y < 50:
+            p.showPage()
+            p.setFont("Helvetica", 12)
+            y = height - 50
+        p.drawString(50, y, line.strip())
+        y -= 20  # Line spacing
+
+    p.showPage()
+    p.save()
+
+    # ✅ Encode PDF to base64
+    pdf_buffer.seek(0)
+    pdf_bytes = pdf_buffer.getvalue()
+    pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
+
+    # ✅ Versioning
+    company_drafts = list(draft_collection.find({"company_name": state["company_name"]}))
+    version = f"v{len(company_drafts) + 1}"
+
+    # ✅ Save to MongoDB
     draft_collection.insert_one({
         "company_name": state["company_name"],
         "draft": draft,
-        "type": state["partnership_type"]
+        "type": state["partnership_type"],
+        "version": version,
+        "pdf_base64": pdf_base64
     })
-    print("✅ Draft saved to MongoDB.")
+
+    print("✅ Draft + PDF saved to MongoDB.")
     print("📄 Draft Text:", draft)
 
-    # Return new state with draft_text
     return {
         **state,
-        "draft_text": draft
+        "draft_text": draft,
+        "version_number": version,
+        "pdf_base64": pdf_base64
     }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -139,11 +180,35 @@ def get_stakeholders_from_db() -> list:
     return stakeholders
 
 @tool(description="Send MoU draft email to a stakeholder using their name, email, and draft content.")
-def send_email_to_stakeholder(name: str, email: str, draft_text: str) -> str:
+def send_email_to_stakeholder(name: str, email: str, draft_text: str, retrieved_clauses: list) -> str:
     sender_email = "rahulsnsihub@gmail.com"
     app_password = os.getenv("GMAIL_APP_PASSWORD")
+    
+    # Format clause text nicely
+    clauses_str = "\n\n".join(
+        [f"Clause {i+1}: {c['text']}" for i, c in enumerate(retrieved_clauses)]
+    )
 
-    msg = MIMEText(draft_text)
+    # Compose the full email
+    email_body = f"""
+Dear {name},
+
+Please find the initial draft of the MoU below:
+
+{draft_text}
+
+--- Suggested Clauses Based on Precedents ---
+
+{clauses_str}
+
+--- Link for the approval ---
+Link : http://localhost:5173/approval
+
+Regards,
+MoU-GENIUS Agent
+"""
+
+    msg = MIMEText(email_body)
     msg["Subject"] = "MoU Draft for Review"
     msg["From"] = sender_email
     msg["To"] = email
@@ -161,8 +226,10 @@ def send_email_to_stakeholder(name: str, email: str, draft_text: str) -> str:
         print("❌ Email failed:", e)
         return "Email failed"
 
+
 def communication_agent(state: dict):
     print("📨 Starting Communication Agent...")
+    retrieved_clauses = state.get("retrieved_clauses", [])
 
     # 1. Get stakeholders
     stakeholders = get_stakeholders_from_db.invoke({})
@@ -173,7 +240,8 @@ def communication_agent(state: dict):
         send_email_to_stakeholder.invoke({
             "name": person["name"],
             "email": person["email"],
-            "draft_text": state["draft_text"]
+            "draft_text": state["draft_text"],
+            "retrieved_clauses": retrieved_clauses
         })
         sent_emails.append(person["email"])
 
@@ -187,6 +255,38 @@ def communication_agent(state: dict):
 # ──────────────────────────────────────────────────────────────────────────────
 # 6. AGENT 4:  Approval Tracker Agent
 # ──────────────────────────────────────────────────────────────────────────────
+
+@csrf_exempt
+def get_approvals(request):
+    client = MongoClient(os.getenv("MONGO_URI"))
+    db = client["AgenticAI"]
+    approvals = db["approvals"]
+
+    data = list(approvals.find({}, {"_id": 0}))  # excludes _id
+    return JsonResponse({"approvals": data}, safe=False)
+
+@csrf_exempt
+def update_approval(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            email = data.get("email")
+            status = data.get("status")
+
+            client = MongoClient(os.getenv("MONGO_URI"))
+            db = client["AgenticAI"]
+            approvals = db["approvals"]
+
+            result = approvals.update_one({"email": email}, {"$set": {"status": status}})
+            if result.modified_count > 0:
+                return JsonResponse({"message": "Status updated successfully"})
+            else:
+                return JsonResponse({"message": "No changes made"}, status=200)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)
 
 @tool(description="Check if stakeholder has approved MoU by querying the MongoDB 'approvals' collection.")
 def check_approval_status_from_db(email: str) -> str:
@@ -204,19 +304,39 @@ def check_approval_status_from_db(email: str) -> str:
     else:
         print(f"❌ DB shows PENDING or not found for {email}")
         return "Pending"
-    
+
+
+import time
 
 def approval_tracker_agent(state: dict):
-    print("⏳ Running Approval Tracker Agent (via DB)...")
+    print("⏳ Running Approval Tracker Agent with Idle-Watch...")
 
     emails_sent = state.get("emails_sent", [])
-    approval_status = {}
+    idle_detected = True
 
-    for email in emails_sent:
-        status = check_approval_status_from_db.invoke({"email": email})
-        approval_status[email] = status
+    while idle_detected:
+        approval_status = {}
+        idle_detected = False  # assume all are active initially
 
-    all_approved = all(s == "Approved" for s in approval_status.values())
+        for email in emails_sent:
+            client = MongoClient(os.getenv("MONGO_URI"))
+            db = client["AgenticAI"]
+            approvals = db["approvals"]
+
+            result = approvals.find_one({"email": email}, {"_id": 0, "status": 1})
+            status = result.get("status", "Pending") if result else "Pending"
+
+            approval_status[email] = status
+
+            if status.lower() == "idle":
+                idle_detected = True
+
+        if idle_detected:
+            print("🕒 Some stakeholders still 'Idle'. Waiting for changes in DB...")
+            time.sleep(5)  # ⏳ Wait for 5 seconds and recheck
+
+    # ✅ Final pass: decide overall status
+    all_approved = all(status.lower() == "approved" for status in approval_status.values())
     overall_status = "Approved" if all_approved else "Pending"
 
     print("✅ Approval Status:", approval_status)
