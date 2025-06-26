@@ -26,6 +26,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
 
+import time
+
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. ENVIRONMENT & DB SETUP
 # ──────────────────────────────────────────────────────────────────────────────
@@ -288,25 +290,6 @@ def update_approval(request):
 
     return JsonResponse({"error": "Invalid request method"}, status=405)
 
-@tool(description="Check if stakeholder has approved MoU by querying the MongoDB 'approvals' collection.")
-def check_approval_status_from_db(email: str) -> str:
-    """
-    Query MongoDB to check if the stakeholder with this email has 'approved' status.
-    """
-    client = MongoClient(os.getenv("MONGO_URI"))
-    db = client["AgenticAI"]
-    approvals = db["approvals"]
-
-    result = approvals.find_one({"email": email}, {"_id": 0, "status": 1})
-    if result and result.get("status", "").lower() == "approved":
-        print(f"✅ DB shows APPROVED for {email}")
-        return "Approved"
-    else:
-        print(f"❌ DB shows PENDING or not found for {email}")
-        return "Pending"
-
-
-import time
 
 def approval_tracker_agent(state: dict):
     print("⏳ Running Approval Tracker Agent with Idle-Watch...")
