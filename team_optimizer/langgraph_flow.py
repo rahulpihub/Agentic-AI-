@@ -17,6 +17,11 @@ from email.mime.text import MIMEText
 
 from difflib import unified_diff
 
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from io import BytesIO
+import base64
+
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -48,11 +53,6 @@ embedder = SentenceTransformer("all-MiniLM-L6-v2")
 # ──────────────────────────────────────────────────────────────────────────────
 # 3. AGENT 1: MoU Drafting
 # ──────────────────────────────────────────────────────────────────────────────
-
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
-from io import BytesIO
-import base64
 
 def draft_mou(state: dict):
     print("🔁 Drafting MoU with form data:", state)
