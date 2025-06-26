@@ -57,6 +57,7 @@ embedder = SentenceTransformer("all-MiniLM-L6-v2")
 def draft_mou(state: dict):
     print("🔁 Drafting MoU with form data:", state)
 
+
     prompt = f"""
 You are a legal assistant. Create a formal Memorandum of Understanding (MoU) document.
 
@@ -65,9 +66,10 @@ Details:
 - Partnership Type: {state['partnership_type']}
 - Objective: {state['objective']}
 - Scope: {state['scope']}
+- Date: {state['mou_date']}
 
-Respond in professional business language. Format as an MoU.Just use the data which is given to you in the above dont take any other data becausei dont want the content which is having blank space
-"""
+Respond in professional business language. Format as an MoU.Dont reveal that it is ai generated in the content    
+""" 
     response = llm.invoke(prompt)
     draft = response.content.replace("**", "").strip()
 

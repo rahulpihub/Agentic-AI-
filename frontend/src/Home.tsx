@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import axios from 'axios'
-import DatePicker from 'react-datepicker'
 
 export default function Home() {
   const [form, setForm] = useState({
@@ -19,8 +18,6 @@ export default function Home() {
   const [overallStatus, setOverallStatus] = useState('')
   const [versionNumber, setVersionNumber] = useState('')
   const [versionDiff, setVersionDiff] = useState('')
-  const [mouDate, setMouDate] = useState<Date | null>(new Date())
-
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value })
