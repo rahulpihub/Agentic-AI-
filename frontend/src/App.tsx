@@ -43,7 +43,7 @@ function App() {
 
   return (
     <div className="bg-slate-100 max-w-screen items-center justify-center px-10 py-10">
-      <div className="w-full max-w-5xl  bg-white rounded-2xl shadow-2xl p-10 space-y-10 border border-slate-200">
+      <div className="w-full max-w-5xl mt-10 bg-white rounded-2xl shadow-2xl p-10 space-y-10 border border-slate-200">
         {/* Header */}
         <div className="text-center">
           <h1 className="text-4xl font-extrabold text-blue-800">
@@ -61,15 +61,19 @@ function App() {
             value={form.company_name}
             onChange={handleChange}
             placeholder="Company Name"
-            className="input-field"
+            className="w-full p-4 border border-slate-300 rounded-md bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <input
+          <select
             name="partnership_type"
             value={form.partnership_type}
             onChange={handleChange}
-            placeholder="Partnership Type (e.g., Internship)"
-            className="input-field"
-          />
+            className="w-full p-4 border border-slate-300 rounded-md bg-white text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select Partnership Type</option>
+            <option value="All">All</option>
+            <option value="Internship">Internship</option>
+            <option value="Research">Research</option>
+          </select>
           <textarea
             name="objective"
             value={form.objective}
