@@ -22,7 +22,9 @@ from reportlab.lib.pagesizes import A4
 from io import BytesIO
 import base64
 
-
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import json
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. ENVIRONMENT & DB SETUP
@@ -254,6 +256,38 @@ def communication_agent(state: dict):
 # 6. AGENT 4:  Approval Tracker Agent
 # ──────────────────────────────────────────────────────────────────────────────
 
+@csrf_exempt
+def get_approvals(request):
+    client = MongoClient(os.getenv("MONGO_URI"))
+    db = client["AgenticAI"]
+    approvals = db["approvals"]
+
+    data = list(approvals.find({}, {"_id": 0}))  # excludes _id
+    return JsonResponse({"approvals": data}, safe=False)
+
+@csrf_exempt
+def update_approval(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            email = data.get("email")
+            status = data.get("status")
+
+            client = MongoClient(os.getenv("MONGO_URI"))
+            db = client["AgenticAI"]
+            approvals = db["approvals"]
+
+            result = approvals.update_one({"email": email}, {"$set": {"status": status}})
+            if result.modified_count > 0:
+                return JsonResponse({"message": "Status updated successfully"})
+            else:
+                return JsonResponse({"message": "No changes made"}, status=200)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)
+
 @tool(description="Check if stakeholder has approved MoU by querying the MongoDB 'approvals' collection.")
 def check_approval_status_from_db(email: str) -> str:
     """
@@ -270,19 +304,39 @@ def check_approval_status_from_db(email: str) -> str:
     else:
         print(f"❌ DB shows PENDING or not found for {email}")
         return "Pending"
-    
+
+
+import time
 
 def approval_tracker_agent(state: dict):
-    print("⏳ Running Approval Tracker Agent (via DB)...")
+    print("⏳ Running Approval Tracker Agent with Idle-Watch...")
 
     emails_sent = state.get("emails_sent", [])
-    approval_status = {}
+    idle_detected = True
 
-    for email in emails_sent:
-        status = check_approval_status_from_db.invoke({"email": email})
-        approval_status[email] = status
+    while idle_detected:
+        approval_status = {}
+        idle_detected = False  # assume all are active initially
 
-    all_approved = all(s == "Approved" for s in approval_status.values())
+        for email in emails_sent:
+            client = MongoClient(os.getenv("MONGO_URI"))
+            db = client["AgenticAI"]
+            approvals = db["approvals"]
+
+            result = approvals.find_one({"email": email}, {"_id": 0, "status": 1})
+            status = result.get("status", "Pending") if result else "Pending"
+
+            approval_status[email] = status
+
+            if status.lower() == "idle":
+                idle_detected = True
+
+        if idle_detected:
+            print("🕒 Some stakeholders still 'Idle'. Waiting for changes in DB...")
+            time.sleep(5)  # ⏳ Wait for 5 seconds and recheck
+
+    # ✅ Final pass: decide overall status
+    all_approved = all(status.lower() == "approved" for status in approval_status.values())
     overall_status = "Approved" if all_approved else "Pending"
 
     print("✅ Approval Status:", approval_status)
