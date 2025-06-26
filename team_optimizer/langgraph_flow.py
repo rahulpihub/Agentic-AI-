@@ -199,6 +199,9 @@ Please find the initial draft of the MoU below:
 
 {clauses_str}
 
+--- Link for the approval ---
+Link : http://localhost:5173/approval
+
 Regards,
 MoU-GENIUS Agent
 """
