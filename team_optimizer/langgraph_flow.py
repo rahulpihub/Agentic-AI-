@@ -26,6 +26,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
 
+import time
+
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. ENVIRONMENT & DB SETUP
 # ──────────────────────────────────────────────────────────────────────────────
@@ -288,25 +290,6 @@ def update_approval(request):
 
     return JsonResponse({"error": "Invalid request method"}, status=405)
 
-@tool(description="Check if stakeholder has approved MoU by querying the MongoDB 'approvals' collection.")
-def check_approval_status_from_db(email: str) -> str:
-    """
-    Query MongoDB to check if the stakeholder with this email has 'approved' status.
-    """
-    client = MongoClient(os.getenv("MONGO_URI"))
-    db = client["AgenticAI"]
-    approvals = db["approvals"]
-
-    result = approvals.find_one({"email": email}, {"_id": 0, "status": 1})
-    if result and result.get("status", "").lower() == "approved":
-        print(f"✅ DB shows APPROVED for {email}")
-        return "Approved"
-    else:
-        print(f"❌ DB shows PENDING or not found for {email}")
-        return "Pending"
-
-
-import time
 
 def approval_tracker_agent(state: dict):
     print("⏳ Running Approval Tracker Agent with Idle-Watch...")
@@ -348,9 +331,24 @@ def approval_tracker_agent(state: dict):
         "overall_mou_status": overall_status
     }
 
+# ──────────────────────────────────────────────────────────────────────────────
+# 7. Router AGENT : Version Controller Agent
+# ──────────────────────────────────────────────────────────────────────────────
+
+def router_decision_agent(state: dict) -> str:
+    print("🧭 Router Agent: Deciding next step...")
+    status = state.get("overall_mou_status", "Pending").lower()
+
+    if status == "approved":
+        print("✅ MoU Approved. Proceeding to version controller.")
+        return "version_controller"
+    else:
+        print("❌ MoU not approved. Returning to communication agent for reminder.")
+        return "communication"
+
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 7. AGENT 5: Version Controller Agent
+# 8. AGENT 5: Version Controller Agent
 # ──────────────────────────────────────────────────────────────────────────────
 
 def version_controller_agent(state: dict):
@@ -426,7 +424,7 @@ def version_controller_agent(state: dict):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 6. LANGGRAPH PIPELINE DEFINITION
+# 9. LANGGRAPH PIPELINE DEFINITION
 # ──────────────────────────────────────────────────────────────────────────────
 
 def build_graph():
@@ -436,14 +434,22 @@ def build_graph():
     g.add_node("clause_retrieval", RunnableLambda(retrieve_clauses))
     g.add_node("communication", RunnableLambda(communication_agent))
     g.add_node("approval_tracker", RunnableLambda(approval_tracker_agent))
-    g.add_node("version_controller", RunnableLambda(version_controller_agent))  # ✅ New node
+    g.add_node("version_controller", RunnableLambda(version_controller_agent)) 
 
     g.set_entry_point("drafting")
     g.add_edge("drafting", "clause_retrieval")
     g.add_edge("clause_retrieval", "communication")
     g.add_edge("communication", "approval_tracker")
-    g.add_edge("approval_tracker", "version_controller")  # ✅ New edge
-    g.add_edge("version_controller", END)  # ✅ Final step
+    # 🔥 Conditional routing (no router node needed now)
+    g.add_conditional_edges(
+        "approval_tracker",
+        router_decision_agent,  # directly use function
+        path_map={
+            "version_controller": "version_controller",
+            "communication": "communication"
+        }
+    )
+    g.add_edge("version_controller", END)  
 
     return g.compile()
 
