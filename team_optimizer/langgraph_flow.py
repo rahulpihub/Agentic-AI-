@@ -36,7 +36,7 @@ load_dotenv()
 # LLM for drafting
 llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-flash",
-    temperature=0.7
+    temperature=0.5
 )
 
 # MongoDB for storing drafts
@@ -332,7 +332,7 @@ def approval_tracker_agent(state: dict):
     }
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 7. Router AGENT : Version Controller Agent
+# 7. Router AGENT : Router Decision Agent
 # ──────────────────────────────────────────────────────────────────────────────
 
 def router_decision_agent(state: dict) -> str:
@@ -361,17 +361,18 @@ def version_controller_agent(state: dict):
     if not company or not curr_text:
         return {**state, "version_diff": "Missing input data"}
 
-    # Fetch all historical drafts BEFORE inserting current one
-    history = list(draft_collection.find({"company_name": company}).sort("_id", 1))
-
-    version_number = f"v{len(history) + 1}"
+    history = list(draft_collection.find({
+        "company_name": company,
+        "draft": {"$ne": curr_text}
+    }).sort("_id", 1))
 
     if history:
         prev_doc = history[-1]  # Get the actual previous version
         prev_text = prev_doc.get("draft", "")
         prev_type = prev_doc.get("type", "")
+        prev_version = prev_doc.get("version", "v1")
 
-        print(f"📜 Comparing with previous version {prev_doc.get('version', 'N/A')}...")
+        print(f"📜 Comparing with previous version {prev_version}...")
         print(f"Previous Type: {prev_type}, Current Type: {curr_type}")
 
         type_changed = curr_type != prev_type
@@ -381,10 +382,11 @@ def version_controller_agent(state: dict):
             print("⚠️ No changes from last version.")
             return {
                 **state,
-                "version_number": version_number,
+                "version_number": prev_version,  # ← use previous version
                 "version_diff": "No change from previous version."
             }
 
+        version_number = f"v{len(history) + 1}"
         diff_sections = []
 
         if type_changed:
@@ -404,9 +406,10 @@ def version_controller_agent(state: dict):
 
     else:
         print("📘 First version, no diff to compare.")
+        version_number = "v1"
         diff_text = "Initial version created."
 
-    # 🔁 Save *after* comparison
+    # 🆕 Only insert if there's a change
     draft_collection.insert_one({
         "company_name": company,
         "draft": curr_text,
@@ -418,10 +421,8 @@ def version_controller_agent(state: dict):
     return {
         **state,
         "version_number": version_number,
-        "version_diff": diff_text
+        "version_diff": "Yes, changes have been made"
     }
-
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 9. LANGGRAPH PIPELINE DEFINITION
