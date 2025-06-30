@@ -143,7 +143,7 @@ def retrieve_clauses(state: dict):
         query_embeddings=[query_emb],
         n_results=5
     )
-    #print("🔍 Query results:", results)
+    print("🔍 Query results:", results)
 
     ids       = results["ids"][0]        # List[str]
     texts     = results["documents"][0]  # List[str]
@@ -184,7 +184,7 @@ def get_stakeholders_from_db() -> list:
 @tool(description="Send MoU draft email to a stakeholder using their name, email, and draft content.")
 def send_email_to_stakeholder(name: str, email: str, draft_text: str, retrieved_clauses: list) -> str:
     sender_email = "rahulsnsihub@gmail.com"
-    app_password = os.getenv("APP_PASSWORD")
+    app_password = os.getenv("GMAIL_APP_PWD")
     print("📌 Loaded App Password:", app_password)
 
     # Format clause text nicely
