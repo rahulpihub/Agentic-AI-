@@ -184,8 +184,9 @@ def get_stakeholders_from_db() -> list:
 @tool(description="Send MoU draft email to a stakeholder using their name, email, and draft content.")
 def send_email_to_stakeholder(name: str, email: str, draft_text: str, retrieved_clauses: list) -> str:
     sender_email = "rahulsnsihub@gmail.com"
-    app_password = os.getenv("GMAIL_APP_PASSWORD")
-    
+    app_password = os.getenv("APP_PASSWORD")
+    print("📌 Loaded App Password:", app_password)
+
     # Format clause text nicely
     clauses_str = "\n\n".join(
         [f"Clause {i+1}: {c['text']}" for i, c in enumerate(retrieved_clauses)]

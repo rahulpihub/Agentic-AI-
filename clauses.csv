@@ -1,9 +1,11 @@
 clause_id,clause_type,partnership_type,text
-1,Confidentiality,All,Both parties agree to maintain the confidentiality of all proprietary and sensitive information disclosed during the internship program.
-2,Termination,All,This MoU may be terminated by either party with 30 days’ prior written notice.
-3,Governing Law,All,"This MoU shall be governed by the laws of the State of Tamil Nadu, India."
-4,Internship Obligations,Internship,"Interns shall abide by SNS Ihub’s code of conduct, IP policies, and maintain regular progress reports approved by mentors."
-5,IP Ownership,Internship,"All intellectual property developed by interns during the program shall remain the property of SNS Ihub, with due credit given to contributors."
-6,Collaboration Clause,Research/Internship,Both parties agree to jointly design internship outcomes and assess effectiveness through a bi-annual review.
-7,Resource Access,Internship,"SNS Ihub shall provide the interns with access to coworking spaces, cloud services, and mentorship from industry experts."
-8,Non-Binding Statement,All,This MoU is a statement of intent and does not constitute a legally binding agreement.
+1,Confidentiality,All,Both parties agree to maintain strict confidentiality regarding all proprietary personal and sensitive information shared during the MoU with SNS Ihub.
+2,Termination,All,This MoU between SNS Ihub and the partnering organization may be terminated by either party with a 30-day prior written notice.
+3,Governing Law,All,This MoU shall be governed and interpreted in accordance with the laws of the State of Tamil Nadu - India where SNS Ihub is headquartered.
+4,Intellectual Property,Internship,All intellectual property created during the internship collaboration shall remain with SNS Ihub with appropriate recognition to contributors.
+5,Dispute Resolution,All,Any dispute arising from this MoU will first be attempted to be resolved through mutual discussion. If unresolved arbitration will take place in Chennai-India with SNS Ihub as a party.
+6,Resource Sharing,Internship,SNS Ihub shall provide interns with access to co-working spaces - cloud infrastructure and mentorship during the tenure of the internship.
+7,Collaboration Review,Research,SNS Ihub and the research partner shall jointly assess project outcomes through bi-annual reviews and modify the collaboration strategy as required.
+8,Non-Disclosure of Results,Research,All research results generated under this MoU shall not be disclosed publicly without prior written consent from SNS Ihub.
+9,Non-Solicitation,Internship,The partner organization shall not solicit or hire interns of SNS Ihub during or within six months after the internship program ends.
+10,Amendment Clause,All,Any modifications to this MoU must be documented in writing and signed by both SNS Ihub and the partnering organization’s authorized representatives.
