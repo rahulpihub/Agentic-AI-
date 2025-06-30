@@ -22,7 +22,11 @@ from reportlab.lib.pagesizes import A4
 from io import BytesIO
 import base64
 
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import json
 
+import time
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. ENVIRONMENT & DB SETUP
@@ -32,7 +36,7 @@ load_dotenv()
 # LLM for drafting
 llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-flash",
-    temperature=0.7
+    temperature=0.5
 )
 
 # MongoDB for storing drafts
@@ -57,6 +61,7 @@ embedder = SentenceTransformer("all-MiniLM-L6-v2")
 def draft_mou(state: dict):
     print("🔁 Drafting MoU with form data:", state)
 
+
     prompt = f"""
 You are a legal assistant. Create a formal Memorandum of Understanding (MoU) document.
 
@@ -65,9 +70,10 @@ Details:
 - Partnership Type: {state['partnership_type']}
 - Objective: {state['objective']}
 - Scope: {state['scope']}
+- Date: {state['mou_date']}
 
-Respond in professional business language. Format as an MoU.
-"""
+Respond in professional business language. Format as an MoU.Dont reveal that it is ai generated in the content    
+""" 
     response = llm.invoke(prompt)
     draft = response.content.replace("**", "").strip()
 
@@ -197,6 +203,9 @@ Please find the initial draft of the MoU below:
 
 {clauses_str}
 
+--- Link for the approval ---
+Link : http://localhost:5173/approval
+
 Regards,
 MoU-GENIUS Agent
 """
@@ -249,35 +258,68 @@ def communication_agent(state: dict):
 # 6. AGENT 4:  Approval Tracker Agent
 # ──────────────────────────────────────────────────────────────────────────────
 
-@tool(description="Check if stakeholder has approved MoU by querying the MongoDB 'approvals' collection.")
-def check_approval_status_from_db(email: str) -> str:
-    """
-    Query MongoDB to check if the stakeholder with this email has 'approved' status.
-    """
+@csrf_exempt
+def get_approvals(request):
     client = MongoClient(os.getenv("MONGO_URI"))
     db = client["AgenticAI"]
     approvals = db["approvals"]
 
-    result = approvals.find_one({"email": email}, {"_id": 0, "status": 1})
-    if result and result.get("status", "").lower() == "approved":
-        print(f"✅ DB shows APPROVED for {email}")
-        return "Approved"
-    else:
-        print(f"❌ DB shows PENDING or not found for {email}")
-        return "Pending"
-    
+    data = list(approvals.find({}, {"_id": 0}))  # excludes _id
+    return JsonResponse({"approvals": data}, safe=False)
+
+@csrf_exempt
+def update_approval(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            email = data.get("email")
+            status = data.get("status")
+
+            client = MongoClient(os.getenv("MONGO_URI"))
+            db = client["AgenticAI"]
+            approvals = db["approvals"]
+
+            result = approvals.update_one({"email": email}, {"$set": {"status": status}})
+            if result.modified_count > 0:
+                return JsonResponse({"message": "Status updated successfully"})
+            else:
+                return JsonResponse({"message": "No changes made"}, status=200)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)
+
 
 def approval_tracker_agent(state: dict):
-    print("⏳ Running Approval Tracker Agent (via DB)...")
+    print("⏳ Running Approval Tracker Agent with Idle-Watch...")
 
     emails_sent = state.get("emails_sent", [])
-    approval_status = {}
+    idle_detected = True
 
-    for email in emails_sent:
-        status = check_approval_status_from_db.invoke({"email": email})
-        approval_status[email] = status
+    while idle_detected:
+        approval_status = {}
+        idle_detected = False  # assume all are active initially
 
-    all_approved = all(s == "Approved" for s in approval_status.values())
+        for email in emails_sent:
+            client = MongoClient(os.getenv("MONGO_URI"))
+            db = client["AgenticAI"]
+            approvals = db["approvals"]
+
+            result = approvals.find_one({"email": email}, {"_id": 0, "status": 1})
+            status = result.get("status", "Pending") if result else "Pending"
+
+            approval_status[email] = status
+
+            if status.lower() == "idle":
+                idle_detected = True
+
+        if idle_detected:
+            print("🕒 Some stakeholders still 'Idle'. Waiting for changes in DB...")
+            time.sleep(5)  # ⏳ Wait for 5 seconds and recheck
+
+    # ✅ Final pass: decide overall status
+    all_approved = all(status.lower() == "approved" for status in approval_status.values())
     overall_status = "Approved" if all_approved else "Pending"
 
     print("✅ Approval Status:", approval_status)
@@ -289,9 +331,24 @@ def approval_tracker_agent(state: dict):
         "overall_mou_status": overall_status
     }
 
+# ──────────────────────────────────────────────────────────────────────────────
+# 7. Router AGENT : Router Decision Agent
+# ──────────────────────────────────────────────────────────────────────────────
+
+def router_decision_agent(state: dict) -> str:
+    print("🧭 Router Agent: Deciding next step...")
+    status = state.get("overall_mou_status", "Pending").lower()
+
+    if status == "approved":
+        print("✅ MoU Approved. Proceeding to version controller.")
+        return "version_controller"
+    else:
+        print("❌ MoU not approved. Returning to communication agent for reminder.")
+        return "communication"
+
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 7. AGENT 5: Version Controller Agent
+# 8. AGENT 5: Version Controller Agent
 # ──────────────────────────────────────────────────────────────────────────────
 
 def version_controller_agent(state: dict):
@@ -304,17 +361,18 @@ def version_controller_agent(state: dict):
     if not company or not curr_text:
         return {**state, "version_diff": "Missing input data"}
 
-    # Fetch all historical drafts BEFORE inserting current one
-    history = list(draft_collection.find({"company_name": company}).sort("_id", 1))
-
-    version_number = f"v{len(history) + 1}"
+    history = list(draft_collection.find({
+        "company_name": company,
+        "draft": {"$ne": curr_text}
+    }).sort("_id", 1))
 
     if history:
         prev_doc = history[-1]  # Get the actual previous version
         prev_text = prev_doc.get("draft", "")
         prev_type = prev_doc.get("type", "")
+        prev_version = prev_doc.get("version", "v1")
 
-        print(f"📜 Comparing with previous version {prev_doc.get('version', 'N/A')}...")
+        print(f"📜 Comparing with previous version {prev_version}...")
         print(f"Previous Type: {prev_type}, Current Type: {curr_type}")
 
         type_changed = curr_type != prev_type
@@ -324,10 +382,11 @@ def version_controller_agent(state: dict):
             print("⚠️ No changes from last version.")
             return {
                 **state,
-                "version_number": version_number,
+                "version_number": prev_version,  # ← use previous version
                 "version_diff": "No change from previous version."
             }
 
+        version_number = f"v{len(history) + 1}"
         diff_sections = []
 
         if type_changed:
@@ -347,9 +406,10 @@ def version_controller_agent(state: dict):
 
     else:
         print("📘 First version, no diff to compare.")
+        version_number = "v1"
         diff_text = "Initial version created."
 
-    # 🔁 Save *after* comparison
+    # 🆕 Only insert if there's a change
     draft_collection.insert_one({
         "company_name": company,
         "draft": curr_text,
@@ -361,13 +421,11 @@ def version_controller_agent(state: dict):
     return {
         **state,
         "version_number": version_number,
-        "version_diff": diff_text
+        "version_diff": "Yes, changes have been made"
     }
 
-
-
 # ──────────────────────────────────────────────────────────────────────────────
-# 6. LANGGRAPH PIPELINE DEFINITION
+# 9. LANGGRAPH PIPELINE DEFINITION
 # ──────────────────────────────────────────────────────────────────────────────
 
 def build_graph():
@@ -377,14 +435,22 @@ def build_graph():
     g.add_node("clause_retrieval", RunnableLambda(retrieve_clauses))
     g.add_node("communication", RunnableLambda(communication_agent))
     g.add_node("approval_tracker", RunnableLambda(approval_tracker_agent))
-    g.add_node("version_controller", RunnableLambda(version_controller_agent))  # ✅ New node
+    g.add_node("version_controller", RunnableLambda(version_controller_agent)) 
 
     g.set_entry_point("drafting")
     g.add_edge("drafting", "clause_retrieval")
     g.add_edge("clause_retrieval", "communication")
     g.add_edge("communication", "approval_tracker")
-    g.add_edge("approval_tracker", "version_controller")  # ✅ New edge
-    g.add_edge("version_controller", END)  # ✅ Final step
+    # 🔥 Conditional routing (no router node needed now)
+    g.add_conditional_edges(
+        "approval_tracker",
+        router_decision_agent,  # directly use function
+        path_map={
+            "version_controller": "version_controller",
+            "communication": "communication"
+        }
+    )
+    g.add_edge("version_controller", END)  
 
     return g.compile()
 
